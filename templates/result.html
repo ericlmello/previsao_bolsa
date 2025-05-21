@@ -1,0 +1,58 @@
+<html>
+<head>
+    <title>Resultado da Previsão até 5 dias</title>
+    <meta charset="UTF-8">
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 0; color: #333;">
+
+    <!-- Container principal -->
+    <div style="max-width: 900px; margin: 20px auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Cabeçalho -->
+        <header style="text-align: center; margin-bottom: 20px;">
+            <h1 style="color: #2C3E50;">Resultado da Previsão</h1>
+            <p style="font-size: 18px; color: #7f8c8d;">Resultados da previsão para o preço das ações (5 dias)</p>
+        </header>
+
+        <!-- Previsão para o próximo dia -->
+        <section style="margin-bottom: 30px;">
+            <h2 style="color: #34495E; font-size: 22px;">Preço previsto para o próximo dia:</h2>
+            <p style="font-size: 24px; color: #e74c3c; font-weight: bold;">{{ prediction_next_day }} USD</p>
+        </section>
+
+        <!-- Gráficos -->
+        <section style="margin-bottom: 30px;">
+            <h3 style="color: #34495E; font-size: 20px;">Gráficos</h3>
+            
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h4 style="color: #2980B9; font-size: 18px;">Preço de Fechamento ao Longo do Tempo</h4>
+                <img src="{{ url_for('static', filename='line_chart.png') }}" alt="Preço ao Longo do Tempo" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h4 style="color: #2980B9; font-size: 18px;">Histograma do Preço de Fechamento</h4>
+                <img src="{{ url_for('static', filename='hist_chart.png') }}" alt="Histograma" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+            </div>
+
+            <div style="text-align: center;">
+                <h4 style="color: #2980B9; font-size: 18px;">Previsão dos Próximos 5 Dias</h4>
+                <img src="{{ url_for('static', filename='future_chart.png') }}" alt="Previsão dos Próximos 5 Dias" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+            </div>
+        </section>
+
+        <!-- Variação Percentual -->
+        <section>
+        <!--    <h3 style="color: #34495E; font-size: 20px;">Variação Percentual dos Próximos 5 Dias</h3>-->
+            <ul style="list-style-type: none; padding: 0;">
+                
+            </ul>
+        </section>
+
+        <!-- Botão de voltar -->
+        <footer style="text-align: center; margin-top: 30px;">
+            <a href="/" style="background-color: #3498db; color: #fff; padding: 10px 20px; text-decoration: none; font-size: 18px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">Voltar</a>
+        </footer>
+    </div>
+
+</body>
+</html>

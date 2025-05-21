@@ -1,0 +1,33 @@
+<html>
+<head>
+    <title>Previsão de Preço de Ação</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; color: #333;">
+
+    <!-- Cabeçalho -->
+    <header style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #2C3E50;">Previsão de Preço de Ação - Mercado Livre</h1>
+        <p style="font-size: 18px; color: #7f8c8d;">Insira o período para treinamento do modelo </p>
+    </header>
+
+    <!-- Formulário -->
+    <div style="max-width: 600px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+        <form method="post">
+            <table style="width: 100%; margin: 0 auto;">
+                <tr>
+                    <td style="padding: 10px; text-align: right; width: 30%;"><label for="start_date">Data de Início:</label></td>
+                    <td style="padding: 10px;"><input type="date" name="start_date" required style="padding: 8px; width: 100%;"></td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; text-align: right; width: 30%;"><label for="end_date">Data de Fim:</label></td>
+                    <td style="padding: 10px;"><input type="date" name="end_date" required style="padding: 8px; width: 100%;"></td>
+                </tr>
+            </table>
+            <div style="text-align: center; margin-top: 20px;">
+                <input type="submit" value="Processar" style="background-color: #3498db; color: #fff; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer;">
+            </div>
+        </form>
+    </div>
+
+</body>
+</html>

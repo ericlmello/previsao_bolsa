@@ -1,0 +1,9 @@
+{
+    "symbol": "QQQ",
+    "sequence_length": 60,
+    "hidden_layer_size": 50,
+    "num_layers": 1,
+    "timestamp": "20250521_001252",
+    "model_path": "models\\QQQ\\QQQ_lstm_model_20250521_001252.pth",
+    "scaler_path": "models\\QQQ\\QQQ_scaler_20250521_001252.pkl"
+}

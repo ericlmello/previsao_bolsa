@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Histórico de Previsões</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .links {
+            margin-top: 20px;
+        }
+        .links a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .links a:hover {
+            text-decoration: underline;
+        }
+        .empty-message {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Histórico de Previsões - {{ symbol }}</h1>
+        
+        {% if predictions.empty %}
+        <div class="empty-message">
+            Não há previsões registradas para este símbolo. Faça uma análise para gerar previsões.
+        </div>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Data da Previsão</th>
+                    <th>Data Alvo</th>
+                    <th>Preço Previsto</th>
+                    
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, row in predictions.iterrows() %}
+                <tr>
+                    <td>{{ row.prediction_date }}</td>
+                    <td>{{ row.target_date }}</td>
+                    <td>${{ "%.2f"|format(row.predicted_price) }}</td>
+                    <td>
+                        {% if row.actual_price %}
+                            ${{ "%.2f"|format(row.actual_price) }}
+                        {% else %}
+                          
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.actual_price %}
+                            {% set error = ((row.actual_price - row.predicted_price) / row.predicted_price * 100)|round(2) %}
+                            {% if error > 0 %}
+                                <span style="color: green">+{{ error }}%</span>
+                            {% else %}
+                                <span style="color: red">{{ error }}%</span>
+                            {% endif %}
+                        {% else %}
+                            
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        
+        <div class="links">
+            <a href="/">Voltar à Página Inicial</a>
+        </div>
+    </div>
+</body>
+</html>
