@@ -1,7 +1,7 @@
 """
-Database functions module for the stock prediction system.
-This module contains all the necessary functions to initialize the database,
-save and retrieve price data, predictions, and model metrics.
+Módulo de funções de banco de dados para o sistema de predição de ações.
+Este módulo contém todas as funções necessárias para inicializar o banco de dados,
+salvar e recuperar dados de preços, predições e métricas de modelos.
 """
 
 import sqlite3
@@ -10,23 +10,23 @@ import pandas as pd
 from datetime import datetime
 import json
 
-# Logging setup
+"""Configuração do sistema de logging"""
 logger = logging.getLogger(__name__)
 
 def init_db():
     """
-    Initialize SQLite database with required tables.
+    Inicializa o banco de dados SQLite com as tabelas necessárias.
     
-    Creates the following tables if they don't exist:
-    - raw_stock_data: raw stock price data
-    - predictions: predictions made by the model
-    - model_metrics: model performance metrics
-    - saved_models: information about saved models
+    Cria as seguintes tabelas se não existirem:
+    - raw_stock_data: dados brutos de preços de ações
+    - predictions: predições feitas pelo modelo
+    - model_metrics: métricas de performance do modelo
+    - saved_models: informações sobre modelos salvos
     """
     with sqlite3.connect('stock_prediction.db') as conn:
         cursor = conn.cursor()
         
-        # Table for raw stock data
+        """Tabela para dados brutos de ações"""
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS raw_stock_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +38,7 @@ def init_db():
         )
         ''')
         
-        # Table for model predictions
+        """Tabela para predições do modelo"""
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS predictions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +50,7 @@ def init_db():
         )
         ''')
 
-        # Table for model metrics
+        """Tabela para métricas do modelo"""
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS model_metrics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +65,7 @@ def init_db():
         )
         ''')
         
-        # Table for saved models
+        """Tabela para modelos salvos"""
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS saved_models (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,69 +82,73 @@ def init_db():
         ''')
         
         conn.commit()
-        logger.info("Database initialized successfully")
+        logger.info("Banco de dados inicializado com sucesso")
 
 def save_raw_data(df, symbol):
-    """Save raw stock data to SQLite database."""
+    """
+    Salva dados brutos de ações no banco de dados SQLite.
+    
+    Args:
+        df (DataFrame): DataFrame contendo os dados de preços
+        symbol (str): Símbolo da ação
+    """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
-            # Reset index to make the date accessible as a column
+            """Reseta o índice para tornar a data acessível como coluna"""
             df_to_save = df.reset_index()
             
-            # Certifique-se que a coluna do índice seja renomeada para 'date'
-            # Verifique o nome da coluna do índice após reset_index
+            """Garante que a coluna do índice seja renomeada para 'date'"""
             if 'index' in df_to_save.columns:
                 df_to_save.rename(columns={'index': 'date'}, inplace=True)
             elif 'Date' in df_to_save.columns:
                 df_to_save.rename(columns={'Date': 'date'}, inplace=True)
             
-            # Verifique se a coluna 'date' existe após o renomeamento
+            """Verifica se a coluna 'date' existe após o renomeamento"""
             if 'date' not in df_to_save.columns:
-                # Se não existir, adicione uma coluna 'date' com os valores atuais
                 df_to_save['date'] = datetime.now().strftime('%Y-%m-%d')
             
-            # Garanta que 'date' seja convertido para string em formato YYYY-MM-DD
+            """Garante que 'date' seja convertido para string em formato YYYY-MM-DD"""
             if pd.api.types.is_datetime64_any_dtype(df_to_save['date']):
                 df_to_save['date'] = df_to_save['date'].dt.strftime('%Y-%m-%d')
             
-            # Renomeie 'Close' para 'close_price'
+            """Renomeia 'Close' para 'close_price'"""
             if 'Close' in df_to_save.columns:
                 df_to_save.rename(columns={'Close': 'close_price'}, inplace=True)
             
-            # Adicione colunas de símbolo e created_at
+            """Adiciona colunas de símbolo e created_at"""
             df_to_save['symbol'] = symbol
             df_to_save['created_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Selecione apenas as colunas necessárias
+            """Seleciona apenas as colunas necessárias"""
             df_to_save = df_to_save[['symbol', 'date', 'close_price', 'created_at']]
             
-            # Salve no banco de dados
+            """Salva no banco de dados"""
             df_to_save.to_sql('raw_stock_data', conn, if_exists='append', index=False)
             
-            logger.info(f"Saved {len(df_to_save)} rows of raw data for {symbol}")
+            logger.info(f"Salvos {len(df_to_save)} registros de dados brutos para {symbol}")
     except Exception as e:
-        logger.error(f"Error saving raw data to database: {e}")
+        logger.error(f"Erro ao salvar dados brutos no banco de dados: {e}")
 
 def save_predictions(symbol, prediction_date, future_predictions_inv):
     """
-    Save predictions to SQLite database.
+    Salva predições no banco de dados SQLite.
     
     Args:
-        symbol: Stock symbol
-        prediction_date: Date of prediction (format 'YYYY-MM-DD')
-        future_predictions_inv: Array of predictions for future days
+        symbol (str): Símbolo da ação
+        prediction_date (str): Data da predição (formato 'YYYY-MM-DD')
+        future_predictions_inv (array): Array de predições para dias futuros
     """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
             cursor = conn.cursor()
             created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Calculate target dates (assuming prediction_date is the current date and predictions are for future days)
+            """Calcula datas alvo (assumindo que prediction_date é a data atual e predições são para dias futuros)"""
             prediction_dt = datetime.strptime(prediction_date, '%Y-%m-%d')
             
-            # Save each prediction
+            """Salva cada predição"""
             for i, pred_price in enumerate(future_predictions_inv):
-                # Target date is i+1 days from prediction date
+                """Data alvo é i+1 dias a partir da data de predição"""
                 target_date = (prediction_dt + pd.Timedelta(days=i+1)).strftime('%Y-%m-%d')
                 
                 cursor.execute('''
@@ -153,21 +157,21 @@ def save_predictions(symbol, prediction_date, future_predictions_inv):
                 ''', (symbol, prediction_date, target_date, float(pred_price), created_at))
             
             conn.commit()
-            logger.info(f"Saved {len(future_predictions_inv)} predictions for {symbol}")
+            logger.info(f"Salvadas {len(future_predictions_inv)} predições para {symbol}")
     except Exception as e:
-        logger.error(f"Error saving predictions to database: {e}")
+        logger.error(f"Erro ao salvar predições no banco de dados: {e}")
 
 def save_model_metrics(symbol, sequence_length, num_epochs, batch_size, loss_history, sigmoid_value):
     """
-    Save model metrics to SQLite database.
+    Salva métricas do modelo no banco de dados SQLite.
     
     Args:
-        symbol: Stock symbol
-        sequence_length: Sequence length used in the model
-        num_epochs: Number of training epochs
-        batch_size: Batch size used in training
-        loss_history: List of loss values during training
-        sigmoid_value: Sigmoid value calculated from average loss
+        symbol (str): Símbolo da ação
+        sequence_length (int): Comprimento da sequência usado no modelo
+        num_epochs (int): Número de épocas de treinamento
+        batch_size (int): Tamanho do batch usado no treinamento
+        loss_history (list): Lista de valores de loss durante o treinamento
+        sigmoid_value (float): Valor sigmoid calculado a partir da loss média
     """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
@@ -175,7 +179,7 @@ def save_model_metrics(symbol, sequence_length, num_epochs, batch_size, loss_his
             run_date = datetime.now().strftime('%Y-%m-%d')
             created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
-            # Convert loss_history to JSON string
+            """Converte loss_history para string JSON"""
             loss_history_json = json.dumps(loss_history)
             
             cursor.execute('''
@@ -184,23 +188,23 @@ def save_model_metrics(symbol, sequence_length, num_epochs, batch_size, loss_his
             ''', (symbol, run_date, sequence_length, num_epochs, batch_size, loss_history_json, sigmoid_value, created_at))
             
             conn.commit()
-            logger.info(f"Saved model metrics for {symbol}")
+            logger.info(f"Métricas do modelo salvas para {symbol}")
     except Exception as e:
-        logger.error(f"Error saving model metrics to database: {e}")
+        logger.error(f"Erro ao salvar métricas do modelo no banco de dados: {e}")
 
 def save_model_info_to_db(symbol, timestamp, model_path, scaler_path, config_path, sequence_length, hidden_layer_size, num_layers):
     """
-    Save model information to SQLite database.
+    Salva informações do modelo no banco de dados SQLite.
     
     Args:
-        symbol: Stock symbol
-        timestamp: Timestamp of the saved model
-        model_path: Path to the model file
-        scaler_path: Path to the scaler file
-        config_path: Path to the configuration file
-        sequence_length: Sequence length of the model
-        hidden_layer_size: Hidden layer size of the model
-        num_layers: Number of layers in the model
+        symbol (str): Símbolo da ação
+        timestamp (str): Timestamp do modelo salvo
+        model_path (str): Caminho para o arquivo do modelo
+        scaler_path (str): Caminho para o arquivo do scaler
+        config_path (str): Caminho para o arquivo de configuração
+        sequence_length (int): Comprimento da sequência do modelo
+        hidden_layer_size (int): Tamanho da camada oculta do modelo
+        num_layers (int): Número de camadas no modelo
     """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
@@ -215,20 +219,20 @@ def save_model_info_to_db(symbol, timestamp, model_path, scaler_path, config_pat
                  sequence_length, hidden_layer_size, num_layers, created_at))
             
             conn.commit()
-            logger.info(f"Saved model information to database for {symbol}")
+            logger.info(f"Informações do modelo salvas no banco de dados para {symbol}")
     except Exception as e:
-        logger.error(f"Error saving model information to database: {e}")
+        logger.error(f"Erro ao salvar informações do modelo no banco de dados: {e}")
 
 def get_latest_predictions(symbol, limit=5):
     """
-    Get the latest predictions from the database.
+    Obtém as predições mais recentes do banco de dados.
     
     Args:
-        symbol: Stock symbol
-        limit: Number of predictions to return (default = 5)
+        symbol (str): Símbolo da ação
+        limit (int): Número de predições a retornar (padrão = 5)
         
     Returns:
-        DataFrame with the latest predictions
+        DataFrame: DataFrame com as predições mais recentes
     """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
@@ -242,18 +246,18 @@ def get_latest_predictions(symbol, limit=5):
             df = pd.read_sql_query(query, conn, params=(symbol, limit))
             return df
     except Exception as e:
-        logger.error(f"Error getting latest predictions: {e}")
+        logger.error(f"Erro ao obter predições mais recentes: {e}")
         return pd.DataFrame()
 
 def get_saved_models(symbol):
     """
-    Get the list of saved models for a specific symbol.
+    Obtém a lista de modelos salvos para um símbolo específico.
     
     Args:
-        symbol: Stock symbol
+        symbol (str): Símbolo da ação
         
     Returns:
-        DataFrame with information about saved models
+        DataFrame: DataFrame com informações sobre modelos salvos
     """
     try:
         with sqlite3.connect('stock_prediction.db') as conn:
@@ -266,5 +270,5 @@ def get_saved_models(symbol):
             df = pd.read_sql_query(query, conn, params=(symbol,))
             return df
     except Exception as e:
-        logger.error(f"Error getting saved models: {e}")
+        logger.error(f"Erro ao obter modelos salvos: {e}")
         return pd.DataFrame()
