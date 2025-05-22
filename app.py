@@ -131,12 +131,7 @@ def history():
     latest_predictions = get_latest_predictions(symbol)
     return render_template('history.html', predictions=latest_predictions, symbol=symbol)
 
-@app.route('/models')
-def list_models():
-    """Página para visualizar modelos salvos."""
-    symbol = request.args.get('symbol', 'MELI')
-    models_df = get_saved_models(symbol)
-    return render_template('models.html', models=models_df, symbol=symbol)
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -429,4 +424,3 @@ def train_model_route():
 if __name__ == '__main__':
     init_db()
     app.run(debug=False, host='0.0.0.0')
-
