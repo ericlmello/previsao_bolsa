@@ -131,7 +131,12 @@ def history():
     latest_predictions = get_latest_predictions(symbol)
     return render_template('history.html', predictions=latest_predictions, symbol=symbol)
 
-
+@app.route('/models')
+def list_models():
+    """Página para visualizar modelos salvos."""
+    symbol = request.args.get('symbol', 'MELI')
+    models_df = get_saved_models(symbol)
+    return render_template('models.html', models=models_df, symbol=symbol)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -175,6 +180,13 @@ def index():
         sequence_length = 60
         X, y = create_sequences(df_scaled, sequence_length)
         
+        # Verifica se as sequências foram criadas corretamente
+        if X is None or y is None or len(X) == 0:
+            logging.error("Erro ao criar sequências. Dados insuficientes.")
+            return "Erro: Dados insuficientes para criar sequências de treinamento. Tente com um período maior de dados."
+        
+        logging.info(f"Sequências criadas: X.shape={X.shape}, y.shape={y.shape}")
+        
         """Define o número de épocas para treinamento"""
         num_epochs = 55  
         batch_size = 32 
@@ -187,6 +199,11 @@ def index():
                 logger.info(f"Usando modelo salvo para {symbol}")
                 scaler = saved_scaler
                 df_scaled = scaler.transform(df_close)
+                # Recria as sequências com o scaler carregado
+                X, y = create_sequences(df_scaled, sequence_length)
+                if X is None or y is None or len(X) == 0:
+                    logging.error("Erro ao criar sequências com modelo salvo.")
+                    return "Erro: Dados insuficientes para usar com o modelo salvo."
             else:
                 logger.warning(f"Nenhum modelo salvo encontrado para {symbol}. Treinando um novo modelo.")
                 use_saved_model = False
@@ -387,6 +404,11 @@ def train_model_route():
         
         """Cria sequências temporais"""
         X, y = create_sequences(df_scaled, sequence_length)
+        
+        # Verifica se as sequências foram criadas corretamente
+        if X is None or y is None or len(X) == 0:
+            logging.error("Erro ao criar sequências. Dados insuficientes.")
+            return "Erro: Dados insuficientes para criar sequências de treinamento. Tente com um período maior de dados."
         
         """Cria o modelo"""
         model = build_lstm_model(sequence_length)
