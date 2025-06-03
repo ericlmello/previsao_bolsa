@@ -15,7 +15,7 @@ Pré-requisitos
     • Pip (gerenciador de pacotes Python) 
 Instalação básica
 # Clonar o repositório
-git clone https://github.com/seu-usuario/stock-prediction-lstm.git
+git clone https://github.com/ericlmello/previsao_bolsa.git
 cd stock-prediction-lstm
 
 # Criar ambiente virtual
