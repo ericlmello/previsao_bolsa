@@ -1,6 +1,5 @@
 """
-Utility functions for Yahoo Finance API interactions
-with rate limiting, caching mechanisms, and fallback data.
+Funções para o YFinance com limites e cache
 """
 
 import logging
@@ -132,21 +131,7 @@ def generate_sample_data(symbol, start_date, end_date):
         }, index=[pd.to_datetime('today')])
 
 def download_stock_data(symbol, start_date, end_date, max_retries=5, base_delay=5, use_cache=True, use_fallback=True):
-    """
-    Download stock data with retry mechanism, caching and fallback to sample data.
     
-    Args:
-        symbol (str): Stock symbol
-        start_date (str): Start date in YYYY-MM-DD format
-        end_date (str): End date in YYYY-MM-DD format
-        max_retries (int): Maximum number of retry attempts
-        base_delay (int): Base delay between retries in seconds
-        use_cache (bool): Whether to use caching mechanism
-        use_fallback (bool): Whether to use fallback sample data when API fails
-        
-    Returns:
-        pandas.DataFrame: Stock data
-    """
     # Check cache first if enabled
     if use_cache:
         cached_data = load_from_cache(symbol, start_date, end_date)
