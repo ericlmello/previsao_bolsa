@@ -2,303 +2,402 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
-import logging
-import os
+from sklearn.preprocessing import MinMaxScaler
 import pickle
 import json
+import os
+import logging
 from datetime import datetime
+import math
 
 logger = logging.getLogger(__name__)
 
-def create_sequences(data, seq_length):
-    """
-    Cria sequências de entrada e valores alvo para predição de séries temporais.
-    
-    Args:
-        data: Dados de entrada normalizados (numpy array)
-        seq_length: Comprimento das sequências de entrada
-        
-    Returns:
-        X: Sequências de entrada
-        y: Valores alvo
-    """
-    xs, ys = [], []
-    for i in range(len(data) - seq_length):
-        x = data[i:i+seq_length]
-        y = data[i+seq_length]
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
-
 class LSTMModel(nn.Module):
-    """
-    Modelo LSTM para predição de séries temporais.
-    
-    Args:
-        input_size: Tamanho da entrada (padrão=1)
-        hidden_layer_size: Tamanho da camada oculta (padrão=50)
-        output_size: Tamanho da saída (padrão=1)
-        num_layers: Número de camadas LSTM (padrão=1)
-    """
-    def __init__(self, input_size=1, hidden_layer_size=50, output_size=1, num_layers=1):
+    def __init__(self, input_size=1, hidden_layer_size=50, num_layers=2, output_size=1):
         super(LSTMModel, self).__init__()
         self.hidden_layer_size = hidden_layer_size
         self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_layer_size, output_size)
         
-    def forward(self, x):
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_layer_size).to(x.device)
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_layer_size).to(x.device)
-        out, _ = self.lstm(x, (h0, c0))
-        out = self.fc(out[:, -1, :])
-        return out
+        self.lstm = nn.LSTM(input_size, hidden_layer_size, num_layers, 
+                           batch_first=True, dropout=0.2)
+        self.linear = nn.Linear(hidden_layer_size, output_size)
+        
+    def forward(self, input_seq):
+        lstm_out, _ = self.lstm(input_seq)
+        predictions = self.linear(lstm_out[:, -1])
+        return predictions
 
-def build_lstm_model(sequence_length):
+def create_sequences(data, sequence_length):
     """
-    Constrói um modelo LSTM com parâmetros predefinidos.
+    Cria sequências temporais para treinamento do LSTM.
     
     Args:
-        sequence_length: Comprimento da sequência de entrada
-        
+        data (array): Dados normalizados
+        sequence_length (int): Comprimento da sequência
+    
     Returns:
-        model: Modelo LSTM configurado
+        tuple: (X, y) onde X são as sequências de entrada e y os valores target
     """
-    input_size = 1
-    hidden_size = 50
-    output_size = 1
-    num_layers = 1
-    model = LSTMModel(input_size, hidden_size, output_size, num_layers)
-    logger.info(f"LSTM Model created with sequence_length={sequence_length}, hidden_size={hidden_size}")
-    return model
+    try:
+        if len(data) <= sequence_length:
+            logger.error(f"Dados insuficientes: {len(data)} pontos, necessário pelo menos {sequence_length + 1}")
+            return None, None
+        
+        X, y = [], []
+        
+        for i in range(sequence_length, len(data)):
+            X.append(data[i-sequence_length:i])
+            y.append(data[i])
+        
+        X = np.array(X)
+        y = np.array(y)
+        
+        logger.info(f"Sequências criadas: X.shape={X.shape}, y.shape={y.shape}")
+        return X, y
+        
+    except Exception as e:
+        logger.error(f"Erro ao criar sequências: {e}")
+        return None, None
 
-def train_lstm(model, X, y, num_epochs=55, batch_size=32, mlflow_available=False, prometheus_available=False, MODEL_LOSS=None, MODEL_SIGMOID=None):
+def build_lstm_model(sequence_length, hidden_size=50, num_layers=2):
     """
-    Treina o modelo LSTM com os dados fornecidos.
+    Constrói o modelo LSTM.
     
     Args:
-        model: Modelo LSTM a ser treinado
-        X: Dados de entrada
-        y: Valores alvo
-        num_epochs: Número de épocas de treinamento (padrão=55)
-        batch_size: Tamanho do lote (padrão=32)
-        mlflow_available: Se MLflow está disponível para logging
-        prometheus_available: Se Prometheus está disponível para métricas
-        MODEL_LOSS: Métrica de perda do Prometheus
-        MODEL_SIGMOID: Métrica sigmoid do Prometheus
-        
+        sequence_length (int): Comprimento da sequência
+        hidden_size (int): Tamanho da camada oculta
+        num_layers (int): Número de camadas LSTM
+    
     Returns:
-        model: Modelo treinado
-        loss_history: Histórico de perdas
-        sigmoid_value: Valor sigmoid da perda média
+        LSTMModel: Modelo LSTM inicializado
     """
-    X_tensor = torch.FloatTensor(X.reshape(-1, X.shape[1], 1))
-    y_tensor = torch.FloatTensor(y)
-    train_dataset = TensorDataset(X_tensor, y_tensor)
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    logger.info(f"Using device: {device}")
-    loss_history = []
-    for epoch in range(num_epochs):
+    try:
+        model = LSTMModel(
+            input_size=1,
+            hidden_layer_size=hidden_size,
+            num_layers=num_layers,
+            output_size=1
+        )
+        logger.info(f"Modelo LSTM criado: hidden_size={hidden_size}, num_layers={num_layers}")
+        return model
+        
+    except Exception as e:
+        logger.error(f"Erro ao construir modelo LSTM: {e}")
+        return None
+
+def train_lstm(model, X, y, num_epochs=50, batch_size=32, learning_rate=0.001):
+    """
+    Treina o modelo LSTM.
+    
+    Args:
+        model (LSTMModel): Modelo LSTM
+        X (array): Dados de entrada
+        y (array): Dados target
+        num_epochs (int): Número de épocas
+        batch_size (int): Tamanho do batch
+        learning_rate (float): Taxa de aprendizado
+    
+    Returns:
+        tuple: (modelo treinado, histórico de loss, valor sigmoid)
+    """
+    try:
+        # Validação das dimensões dos dados
+        if X is None or y is None:
+            logger.error("Dados de entrada são None")
+            return model, [], 0.5
+        
+        if len(X.shape) != 3:
+            logger.error(f"X deve ter 3 dimensões, mas tem {len(X.shape)}: {X.shape}")
+            return model, [], 0.5
+        
+        if len(y.shape) != 2:
+            logger.error(f"y deve ter 2 dimensões, mas tem {len(y.shape)}: {y.shape}")
+            return model, [], 0.5
+        
+        # Converte para tensores do PyTorch
+        X_tensor = torch.FloatTensor(X)
+        y_tensor = torch.FloatTensor(y)
+        
+        # Define otimizador e função de perda
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        criterion = nn.MSELoss()
+        
         model.train()
-        epoch_loss = 0
-        for batch_X, batch_y in train_loader:
-            batch_X = batch_X.to(device)
-            batch_y = batch_y.to(device)
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
-        avg_loss = epoch_loss / len(train_loader)
-        loss_history.append(avg_loss)
-        if mlflow_available:
-            import mlflow
-            mlflow.log_metric("loss", avg_loss, step=epoch)
-        if prometheus_available and MODEL_LOSS:
-            MODEL_LOSS.observe(avg_loss)
-        if epoch % 10 == 0:
-            logger.info(f'Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}')
-    avg_overall_loss = np.mean(loss_history)
-    sigmoid_value = 1 / (1 + np.exp(-avg_overall_loss))
-    if prometheus_available and MODEL_SIGMOID:
-        MODEL_SIGMOID.labels(model='pytorch_lstm').set(sigmoid_value)
-    return model, loss_history, sigmoid_value
+        loss_history = []
+        
+        logger.info(f"Iniciando treinamento: {num_epochs} épocas, batch_size={batch_size}")
+        
+        for epoch in range(num_epochs):
+            epoch_loss = 0.0
+            num_batches = 0
+            
+            # Treinamento por batches
+            for i in range(0, len(X_tensor), batch_size):
+                batch_X = X_tensor[i:i+batch_size]
+                batch_y = y_tensor[i:i+batch_size]
+                
+                optimizer.zero_grad()
+                outputs = model(batch_X)
+                loss = criterion(outputs, batch_y)
+                loss.backward()
+                optimizer.step()
+                
+                epoch_loss += loss.item()
+                num_batches += 1
+            
+            avg_loss = epoch_loss / num_batches if num_batches > 0 else 0
+            loss_history.append(avg_loss)
+            
+            if (epoch + 1) % 10 == 0:
+                logger.info(f'Época [{epoch+1}/{num_epochs}], Loss: {avg_loss:.6f}')
+        
+        # Calcula valor sigmoid baseado na perda média
+        avg_loss = np.mean(loss_history) if loss_history else 1.0
+        sigmoid_value = 1 / (1 + math.exp(avg_loss))
+        
+        logger.info(f"Treinamento concluído. Loss final: {loss_history[-1]:.6f}, Sigmoid: {sigmoid_value:.4f}")
+        
+        return model, loss_history, sigmoid_value
+        
+    except Exception as e:
+        logger.error(f"Erro durante o treinamento: {e}")
+        return model, [], 0.5
 
-def predict_prices(data, model, scaler, sequence_length, days_ahead=1):
+def predict_prices(df_scaled, model, scaler, sequence_length, days_ahead=5):
     """
-    Prediz preços futuros usando o modelo treinado.
+    Faz predições de preços futuros.
     
     Args:
-        data: Dados históricos normalizados
-        model: Modelo LSTM treinado
-        scaler: Scaler usado para normalização
-        sequence_length: Comprimento da sequência de entrada
-        days_ahead: Número de dias à frente para predizer (padrão=1)
-        
+        df_scaled (array): Dados normalizados
+        model (LSTMModel): Modelo treinado
+        scaler (MinMaxScaler): Scaler usado na normalização
+        sequence_length (int): Comprimento da sequência
+        days_ahead (int): Número de dias para predizer
+    
     Returns:
-        predictions_inv[0]: Predição para o próximo dia
-        predictions_inv: Todas as predições desnormalizadas
+        tuple: (predição próximo dia, predições futuras desnormalizadas)
     """
-    model.eval()
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    current_sequence = data[-sequence_length:].reshape(1, sequence_length, 1)
-    current_sequence = torch.FloatTensor(current_sequence).to(device)
-    predictions = []
-    for _ in range(days_ahead):
+    try:
+        model.eval()
+        
+        # Pega os últimos dados para predição
+        last_sequence = df_scaled[-sequence_length:].reshape(1, sequence_length, 1)
+        last_sequence_tensor = torch.FloatTensor(last_sequence)
+        
+        # Predição do próximo dia
         with torch.no_grad():
-            prediction = model(current_sequence)
-        predicted_value = prediction.item()
-        predictions.append(predicted_value)
-        new_sequence = torch.cat((current_sequence[:, 1:, :], prediction.view(1, 1, 1)), dim=1)
-        current_sequence = new_sequence
-    predictions_inv = scaler.inverse_transform(np.array(predictions).reshape(-1, 1)).flatten()
-    return predictions_inv[0], predictions_inv
+            next_day_pred = model(last_sequence_tensor).item()
+        
+        # Desnormaliza a predição do próximo dia
+        next_day_pred_inv = scaler.inverse_transform([[next_day_pred]])[0][0]
+        
+        # Predições para múltiplos dias
+        future_predictions = []
+        current_sequence = df_scaled[-sequence_length:].copy()
+        
+        for _ in range(days_ahead):
+            # Reshapes para o formato correto
+            input_seq = current_sequence.reshape(1, sequence_length, 1)
+            input_tensor = torch.FloatTensor(input_seq)
+            
+            with torch.no_grad():
+                pred = model(input_tensor).item()
+            
+            future_predictions.append(pred)
+            
+            # Atualiza a sequência removendo o primeiro elemento e adicionando a predição
+            current_sequence = np.append(current_sequence[1:], pred)
+        
+        # Desnormaliza as predições futuras
+        future_predictions_inv = scaler.inverse_transform(
+            np.array(future_predictions).reshape(-1, 1)
+        ).flatten()
+        
+        logger.info(f"Predições geradas: próximo dia = {next_day_pred_inv:.2f}")
+        
+        return next_day_pred_inv, future_predictions_inv
+        
+    except Exception as e:
+        logger.error(f"Erro ao fazer predições: {e}")
+        return 0.0, [0.0] * days_ahead
 
 def save_model(model, scaler, symbol, sequence_length):
     """
-    Salva o modelo treinado em arquivos.
+    Salva o modelo, scaler e configurações em arquivos.
     
     Args:
-        model: Modelo LSTM treinado
-        scaler: Scaler usado para normalização
-        symbol: Símbolo da ação/ativo
-        sequence_length: Comprimento da sequência usada no treinamento
-        
+        model (LSTMModel): Modelo treinado
+        scaler (MinMaxScaler): Scaler usado
+        symbol (str): Símbolo da ação
+        sequence_length (int): Comprimento da sequência
+    
     Returns:
-        model_path: Caminho do arquivo do modelo
-        scaler_path: Caminho do arquivo do scaler
-        config_path: Caminho do arquivo de configuração
+        tuple: (caminho do modelo, caminho do scaler, caminho da config)
     """
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        model_dir = os.path.join('models', symbol)
-        if not os.path.exists(model_dir):
-            os.makedirs(model_dir)
+        # Caminhos dos arquivos
+        model_path = f'models/{symbol}_lstm_model_{timestamp}.pth'
+        scaler_path = f'models/{symbol}_scaler_{timestamp}.pkl'
+        config_path = f'models/{symbol}_config_{timestamp}.json'
         
-        model_path = os.path.join(model_dir, f"{symbol}_lstm_model_{timestamp}.pth")
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'sequence_length': sequence_length,
-            'hidden_layer_size': model.hidden_layer_size,
-            'num_layers': model.num_layers,
-            'timestamp': timestamp
-        }, model_path)
+        # Salva o modelo PyTorch
+        torch.save(model.state_dict(), model_path)
         
-        scaler_path = os.path.join(model_dir, f"{symbol}_scaler_{timestamp}.pkl")
+        # Salva o scaler
         with open(scaler_path, 'wb') as f:
             pickle.dump(scaler, f)
         
-        config_path = os.path.join(model_dir, f"{symbol}_config_{timestamp}.json")
+        # Salva a configuração
         config = {
             'symbol': symbol,
             'sequence_length': sequence_length,
             'hidden_layer_size': model.hidden_layer_size,
             'num_layers': model.num_layers,
-            'timestamp': timestamp,
-            'model_path': model_path,
-            'scaler_path': scaler_path
+            'timestamp': timestamp
         }
         
         with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
+            json.dump(config, f, indent=2)
         
-        latest_model_path = os.path.join(model_dir, f"{symbol}_lstm_model_latest.pth")
-        latest_scaler_path = os.path.join(model_dir, f"{symbol}_scaler_latest.pkl")
-        latest_config_path = os.path.join(model_dir, f"{symbol}_config_latest.json")
-        
-        torch.save({
-            'model_state_dict': model.state_dict(),
-            'sequence_length': sequence_length,
-            'hidden_layer_size': model.hidden_layer_size,
-            'num_layers': model.num_layers,
-            'timestamp': timestamp
-        }, latest_model_path)
-        
-        with open(latest_scaler_path, 'wb') as f:
-            pickle.dump(scaler, f)
-        
-        with open(latest_config_path, 'w') as f:
-            json.dump(config, f, indent=4)
-        
-        logger.info(f"Model saved to {model_path} and {latest_model_path}")
-        logger.info(f"Scaler saved to {scaler_path} and {latest_scaler_path}")
-        logger.info(f"Config saved to {config_path} and {latest_config_path}")
-        
+        logger.info(f"Modelo salvo: {model_path}")
         return model_path, scaler_path, config_path
-    
+        
     except Exception as e:
-        logger.error(f"Error saving model to file: {e}")
+        logger.error(f"Erro ao salvar modelo: {e}")
         return None, None, None
 
-def load_model(symbol, use_latest=True, timestamp=None):
+def get_model_summary(model):
     """
-    Carrega um modelo treinado a partir de arquivos.
+    Retorna um resumo do modelo LSTM.
     
     Args:
-        symbol: Símbolo da ação/ativo
-        use_latest: Se deve usar a versão mais recente do modelo (padrão=True)
-        timestamp: Timestamp específico do modelo (usado quando use_latest=False)
-        
+        model (LSTMModel): Modelo LSTM
+    
     Returns:
-        model: Modelo LSTM carregado
-        scaler: Scaler carregado
-        config: Configuração do modelo
+        dict: Resumo do modelo
     """
     try:
-        model_dir = os.path.join('models', symbol)
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         
-        if use_latest:
-            model_path = os.path.join(model_dir, f"{symbol}_lstm_model_latest.pth")
-            scaler_path = os.path.join(model_dir, f"{symbol}_scaler_latest.pkl")
-            config_path = os.path.join(model_dir, f"{symbol}_config_latest.json")
-        else:
-            if timestamp is None:
-                logger.error("Timestamp must be provided when use_latest is False")
-                return None, None, None
+        summary = {
+            'hidden_layer_size': model.hidden_layer_size,
+            'num_layers': model.num_layers,
+            'total_parameters': total_params,
+            'trainable_parameters': trainable_params,
+            'model_size_mb': total_params * 4 / (1024 * 1024)  # Aproximado em MB
+        }
+        
+        return summary
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar resumo do modelo: {e}")
+        return {}
+
+def evaluate_model(model, X_test, y_test):
+    """
+    Avalia o modelo com dados de teste.
+    
+    Args:
+        model (LSTMModel): Modelo treinado
+        X_test (array): Dados de teste (entrada)
+        y_test (array): Dados de teste (target)
+    
+    Returns:
+        dict: Métricas de avaliação
+    """
+    try:
+        model.eval()
+        
+        X_test_tensor = torch.FloatTensor(X_test)
+        y_test_tensor = torch.FloatTensor(y_test)
+        
+        with torch.no_grad():
+            predictions = model(X_test_tensor)
             
-            model_path = os.path.join(model_dir, f"{symbol}_lstm_model_{timestamp}.pth")
-            scaler_path = os.path.join(model_dir, f"{symbol}_scaler_{timestamp}.pkl")
-            config_path = os.path.join(model_dir, f"{symbol}_config_{timestamp}.json")
+            # Calcula métricas
+            mse = nn.MSELoss()(predictions, y_test_tensor).item()
+            mae = torch.mean(torch.abs(predictions - y_test_tensor)).item()
+            rmse = math.sqrt(mse)
+            
+            # Calcula R²
+            y_mean = torch.mean(y_test_tensor)
+            ss_tot = torch.sum((y_test_tensor - y_mean) ** 2)
+            ss_res = torch.sum((y_test_tensor - predictions) ** 2)
+            r2 = 1 - (ss_res / ss_tot)
+            
+            metrics = {
+                'mse': mse,
+                'mae': mae,
+                'rmse': rmse,
+                'r2': r2.item()
+            }
+            
+            logger.info(f"Avaliação concluída: MSE={mse:.6f}, MAE={mae:.6f}, RMSE={rmse:.6f}, R²={r2:.4f}")
+            
+            return metrics
         
-        if not os.path.exists(model_path) or not os.path.exists(scaler_path) or not os.path.exists(config_path):
-            logger.error(f"Model, scaler, or config file not found")
+    except Exception as e:
+        logger.error(f"Erro durante avaliação: {e}")
+        return {}
+
+def load_model(symbol):
+    """
+    Carrega o modelo mais recente para um símbolo.
+    
+    Args:
+        symbol (str): Símbolo da ação
+    
+    Returns:
+        tuple: (modelo, scaler, config) ou (None, None, None) se não encontrado
+    """
+    try:
+        models_dir = 'models'
+        if not os.path.exists(models_dir):
+            logger.warning("Diretório de modelos não existe")
             return None, None, None
         
+        # Encontra os arquivos mais recentes para o símbolo
+        model_files = [f for f in os.listdir(models_dir) 
+                      if f.startswith(f'{symbol}_lstm_model_') and f.endswith('.pth')]
+        
+        if not model_files:
+            logger.warning(f"Nenhum modelo encontrado para {symbol}")
+            return None, None, None
+        
+        # Pega o arquivo mais recente
+        latest_model_file = sorted(model_files)[-1]
+        timestamp = latest_model_file.split('_')[-1].replace('.pth', '')
+        
+        model_path = os.path.join(models_dir, latest_model_file)
+        scaler_path = os.path.join(models_dir, f'{symbol}_scaler_{timestamp}.pkl')
+        config_path = os.path.join(models_dir, f'{symbol}_config_{timestamp}.json')
+        
+        # Carrega a configuração
         with open(config_path, 'r') as f:
             config = json.load(f)
         
-        checkpoint = torch.load(model_path)
-        sequence_length = checkpoint['sequence_length']
-        hidden_layer_size = checkpoint['hidden_layer_size']
-        num_layers = checkpoint['num_layers']
-        
+        # Cria o modelo com a configuração
         model = LSTMModel(
             input_size=1,
-            hidden_layer_size=hidden_layer_size,
-            output_size=1,
-            num_layers=num_layers
+            hidden_layer_size=config['hidden_layer_size'],
+            num_layers=config['num_layers'],
+            output_size=1
         )
         
-        model.load_state_dict(checkpoint['model_state_dict'])
+        # Carrega os pesos do modelo
+        model.load_state_dict(torch.load(model_path))
         model.eval()
         
+        # Carrega o scaler
         with open(scaler_path, 'rb') as f:
             scaler = pickle.load(f)
         
-        logger.info(f"Model loaded from {model_path}")
-        logger.info(f"Scaler loaded from {scaler_path}")
-        logger.info(f"Config loaded from {config_path}")
-        
+        logger.info(f"Modelo carregado: {model_path}")
         return model, scaler, config
-    
+        
     except Exception as e:
-        logger.error(f"Error loading model from file: {e}")
+        logger.error(f"Erro ao carregar modelo: {e}")
         return None, None, None
